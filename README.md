@@ -42,4 +42,4 @@ Code::Blocks
 
 Dev-C++
 
-Çevrimiçi derleyici: leyici: <a href="https://www.onlinegdb.com/online_c_compiler">Online C Compiler</a>
+Çevrimiçi derleyici: <a href="https://www.onlinegdb.com/online_c_compiler">Online C Compiler</a>
