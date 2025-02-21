@@ -2,56 +2,75 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Düğüm yapısı tanımı
-struct LogDugumu {
-    char mesaj[100];           // Log mesajı
-    char zaman[20];            // Tarih/zaman bilgisi
-    struct LogDugumu* sonraki; // Sonraki düğüme işaretçi
-};
+#define MAKS_SATIR_UZUNLUK 1024
 
-// Log ekleme fonksiyonu
-void logEkle(struct LogDugumu** bas, const char* mesaj, const char* zaman) {
-    // Yeni düğüm oluştur
-    struct LogDugumu* yeniDugum = (struct LogDugumu*)malloc(sizeof(struct LogDugumu));
-    strcpy(yeniDugum->mesaj, mesaj);
-    strcpy(yeniDugum->zaman, zaman);
-    yeniDugum->sonraki = NULL;
+// Bağlı liste düğüm yapısı
+typedef struct Dugum {
+    char veri[MAKS_SATIR_UZUNLUK]; // Syslog satırını saklayan karakter dizisi
+    struct Dugum* sonraki; // Sonraki düğüme işaretçi
+} Dugum;
 
-    // Liste boşsa yeni düğümü baş düğüm yap
-    if (*bas == NULL) {
-        *bas = yeniDugum;
+// Bağlı listeye yeni düğüm ekleyen fonksiyon
+void dugum_ekle(Dugum** bas, const char* satir) {
+    Dugum* yeni_dugum = (Dugum*)malloc(sizeof(Dugum)); // Yeni düğüm için bellek tahsisi
+    if (!yeni_dugum) {
+        printf("Bellek tahsis hatası!\n");
         return;
     }
+    strncpy(yeni_dugum->veri, satir, MAKS_SATIR_UZUNLUK); // Syslog satırını kopyala
+    yeni_dugum->veri[MAKS_SATIR_UZUNLUK - 1] = '\0'; // Güvenlik için sonlandırıcı karakter ekle
+    yeni_dugum->sonraki = NULL;
 
-    // Listenin sonuna ekle
-    struct LogDugumu* gecici = *bas;
-    while (gecici->sonraki != NULL) {
-        gecici = gecici->sonraki;
+    if (*bas == NULL) {
+        *bas = yeni_dugum; // Liste boşsa baş düğümü olarak ayarla
+    } else {
+        Dugum* gecici = *bas;
+        while (gecici->sonraki)
+            gecici = gecici->sonraki;
+        gecici->sonraki = yeni_dugum; // Listenin sonuna ekle
     }
-    gecici->sonraki = yeniDugum;
 }
 
-// Logları yazdırma fonksiyonu
-void loglariYazdir(struct LogDugumu* bas) {
-    struct LogDugumu* gecici = bas;
-    while (gecici != NULL) {
-        printf("Zaman: %s, Mesaj: %s\n", gecici->zaman, gecici->mesaj);
+// Bağlı listedeki verileri ekrana yazdıran fonksiyon
+void listeyi_yazdir(Dugum* bas) {
+    Dugum* gecici = bas;
+    while (gecici) {
+        printf("%s", gecici->veri); // Her düğümün verisini yazdır
         gecici = gecici->sonraki;
     }
+}
+
+// Bağlı listeyi temizleyen fonksiyon
+void listeyi_temizle(Dugum** bas) {
+    Dugum* gecici = *bas;
+    while (gecici) {
+        Dugum* silinecek = gecici;
+        gecici = gecici->sonraki;
+        free(silinecek); // Belleği serbest bırak
+    }
+    *bas = NULL;
 }
 
 int main() {
-    struct LogDugumu* logListesi = NULL;
+    // Syslog dosyasını okuma modunda aç
+    FILE* dosya = fopen("/var/log/syslog", "r");
+    if (!dosya) {
+        printf("Syslog dosyası açılamadı!\n");
+        return 1;
+    }
 
-    // Log ekleme
-    logEkle(&logListesi, "Sistem baslatildi", "2025-02-16 10:00");
-    logEkle(&logListesi, "Kullanici oturum acti", "2025-02-16 10:30");
-    logEkle(&logListesi, "Disk alani dolmak uzere", "2025-02-16 11:00");
-    logEkle(&logListesi, "CPU sicakligi yuksek", "2025-02-16 11:00");
-
-    // Logları yazdır
-    loglariYazdir(logListesi);
-
+    Dugum* bas = NULL;
+    char satir[MAKS_SATIR_UZUNLUK];
+    
+    // Syslog dosyasını satır satır oku ve bağlı listeye ekle
+    while (fgets(satir, MAKS_SATIR_UZUNLUK, dosya)) {
+        dugum_ekle(&bas, satir);
+    }
+    fclose(dosya);
+    
+    printf("Syslog verileri:\n");
+    listeyi_yazdir(bas); // Bağlı listeyi ekrana yazdır
+    
+    listeyi_temizle(&bas); // Belleği temizle
     return 0;
 }
-
